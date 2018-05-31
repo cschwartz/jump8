@@ -44,6 +44,8 @@ function _draw()
 
 	 updates = stat(7)
   fps = stat(9)
+  is_grounded = game.player.is_grounded and "grounded" or "jumping"
+  print("is_grounded: " .. is_grounded , 0, 90)
   print("updates: " .. updates .. ", fps: " .. fps, 0, 98)
   print("acc: " .. game.player.acceleration:str(), 0, 106)
   print("vel: " .. game.player.velocity:str(), 0, 112)
@@ -149,7 +151,7 @@ function player:update(now)
   else
     self.current_animation = "walk"
   end
-  if abs(self.velocity.y) > 0 then
+  if abs(self.velocity.y) > 0.01 then
     self.current_animation = "jump"
   end
 
@@ -226,10 +228,7 @@ function player:next_frame()
 	current_animation = self.animations[self.current_animation]
  num_frames = #current_animation
  current_index = self.current_animation_index
- current_index += 1
- if current_index > num_frames then
-   current_index = 1
- end
+ current_index = (current_index + 1) % num_frames + 1
  
  self.current_animation_index = current_index
 end
