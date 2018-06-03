@@ -45,11 +45,11 @@ function _draw()
 	 updates = stat(7)
   fps = stat(9)
   is_grounded = game.player.is_grounded and "grounded" or "jumping"
-  print("is_grounded: " .. is_grounded , 0, 90)
-  print("updates: " .. updates .. ", fps: " .. fps, 0, 98)
-  print("acc: " .. game.player.acceleration:str(), 0, 106)
-  print("vel: " .. game.player.velocity:str(), 0, 112)
-  print("anim: " .. game.player.current_animation .. " (" .. game.player.current_animation_index .. " / " .. #game.player.animations[game.player.current_animation] .. ")", 0, 120)
+  -- print("is_grounded: " .. is_grounded , 0, 90)
+  -- print("updates: " .. updates .. ", fps: " .. fps, 0, 98)
+  -- print("acc: " .. game.player.acceleration:str(), 0, 106)
+  -- print("vel: " .. game.player.velocity:str(), 0, 112)
+  -- print("anim: " .. game.player.current_animation .. " (" .. game.player.current_animation_index .. " / " .. #game.player.animations[game.player.current_animation] .. ")", 0, 120)
 end
 
 function _update()
@@ -71,7 +71,14 @@ function _update()
   game.player:move(x, jump)
   
   game.player:update(current_update)
-end
+  -- d:observe("vel_x", game.player.acceleration.x, 2)
+  -- d:observe("vel_x", game.player.velocity.x, 2, game.player.max_velocity_x)
+  -- printh("accy: " .. game.player.acceleration.y, "foo")
+  -- printh("vely: " .. game.player.velocity.y, "foo")
+  d:observe("pos_y", -game.player.position.y, 6, 100)
+  -- d:observe("vel_y", - game.player.velocity.y, 2, game.player.max_velocity_x)
+  -- d:observe("acc_y", - game.player.acceleration.y, 2, game.player.max_velocity_x)
+  end
 -->8
 player = {}
 player.size = 8
@@ -107,7 +114,7 @@ end
 
 function player:move(x, jump)
   self.acceleration.x = x * self.walk_acceleration
-  if jump then
+  if jump and self.is_grounded then
     self.acceleration.y = -self.jump_acceleration
   else
     self.acceleration.y = 0
@@ -123,22 +130,21 @@ end
 
 function player:update(now)
   -- d:rect(self.position.x, self.position.y)
-  self.is_grounded = false
-		if now >= self.last_frame_change + 1.0 / self.frames_per_second then
-				self:next_frame()
-				self.last_frame_change = now
-		end
-
-		self.acceleration.y += 9.81-- / game.ticks_per_second
+  if now >= self.last_frame_change + 1.0 / self.frames_per_second then
+      self:next_frame()
+      self.last_frame_change = now
+  end
+	
+  self.acceleration.y += 9.81
 
   self.velocity.x += self.acceleration.x
   self.velocity.y += self.acceleration.y
 
   -- apply drag
-  self.velocity.x = sgn(self.velocity.x) * max(abs(self.velocity.x) - self.drag_x, 0)
-  
+  self.velocity.x = sgn(self.velocity.x) * max(abs(self.velocity.x) - self.drag_x, 0)  
   -- clamp to max velocity
   self.velocity.x = clamp(self.velocity.x, self.max_velocity_x)
+
   self:apply_velocity()
 
   if self.acceleration.x > 0 then
@@ -154,34 +160,39 @@ function player:update(now)
   if abs(self.velocity.y) > 0.01 then
     self.current_animation = "jump"
   end
-
 end
 
 function player:apply_velocity()
-  old_position = vec2:new({x=self.position.x, y=self.position.y})
-      
-  self.position.x = self.position.x + (self.velocity.x / game.ticks_per_second)
-  if self:is_blocked_at(self.position) then
-    self.position = old_position
-    self.velocity.x = 0
-  end
+  self.is_grounded = false
+  step_size = 3
+  for n = 1, step_size do
+    old_position = vec2:new({x=self.position.x, y=self.position.y})
+        
+    self.position.x = self.position.x + (self.velocity.x / step_size / game.ticks_per_second)
+    if self:is_blocked_at(self.position) then
+      self.position = old_position
+      self.velocity.x = 0
+    end
 
-  old_position = vec2:new({x=self.position.x,y=self.position.y})
-  self.position.y = self.position.y + (self.velocity.y / game.ticks_per_second)
-  if self:is_blocked_at(self.position) then
-    self.position = old_position
-    self.velocity.y = 0
+    old_position = vec2:new({x=self.position.x,y=self.position.y})
+    self.position.y = self.position.y + (self.velocity.y / step_size / game.ticks_per_second)
+    if self:is_blocked_at(self.position) then
+      self.position = old_position
+      self.velocity.y = 0
 
-    self.is_grounded = true
+      self.is_grounded = true
+      break
+    end
+
   end
 end
 
 function player:is_blocked_at(position)
 		for x = 0,game.world_size.x do
 		  for y = 0,game.world_size.y do  
-						if tile.is_solid(x, y) then
-								if self:overlaps(x, y, tile.size) then
-		              d:rect(x*8, y*8, 2)
+				if tile.is_solid(x, y) then
+					if self:overlaps(x, y, tile.size) then
+		        -- d:rect(x*8, y*8, 2)
 		        return true
 		      end
 		    end
@@ -204,7 +215,7 @@ function player:overlaps(x, y, size)
        p.x < tile_pos.x + size and
        p.y >= tile_pos.y and
        p.y < tile_pos.y + size then
---        d:rect(p.x, p.y, 7, 1, 1)
+        -- d:rect(p.x, p.y, 7, 1, 1)
         return true
     end
   end
@@ -228,7 +239,7 @@ function player:next_frame()
 	current_animation = self.animations[self.current_animation]
  num_frames = #current_animation
  current_index = self.current_animation_index
- current_index = (current_index + 1) % num_frames + 1
+ current_index = current_index % num_frames + 1
  
  self.current_animation_index = current_index
 end
@@ -282,6 +293,51 @@ end
 
 
 -->8
+debug_graph = {
+  abbrev_length = 4,
+  frames_stored = 4 * 30
+}
+debug_graph.__index = debug_graph
+
+function debug_graph:new(c)
+  c = c or {}
+  self.__index = self
+
+  if c.name and #c.name > debug_graph.abbrev_length then
+    abbrev = sub(c.name, 0, 5)
+  else
+    abbrev = c.name
+  end
+  c = {
+    name = abbrev or "",
+    values = {},
+    rows = c.rows or 1,
+    max_value = c.max_value or 20,
+    current_slot = 1
+  }
+
+  for i = 1, debug_graph.frames_stored do
+    c.values[i] = 0
+  end
+  return setmetatable(c, self)
+end
+
+function debug_graph:draw(y)
+  print(self.name, 0, y, 7)
+  start_x = 8 * (debug_graph.abbrev_length + 1) / 2
+  rect(start_x, y, 127, y, 7)
+  for i = 0, debug_graph.frames_stored, 30 do
+    pset(start_x + i, y, 2)
+  end
+
+  x = 8 * (debug_graph.abbrev_length + 1)
+  base_y = y + (self.rows * 8)/2
+  for i = 1, debug_graph.frames_stored do
+    value = clamp(self.values[i], self.max_value) / self.max_value * (self.rows * 8)/2
+    pset(i + start_x, base_y - value , self.current_slot == (i + 1) and 7 or 1)
+  end
+end
+
 debug_rect = {}
 debug_rect.__index = debug_rect
 
@@ -313,6 +369,8 @@ function debug:new(d)
   self.__index = self
   
   d.items = d.items or {}
+  d.graphs = d.graphs or {}
+  d.name_to_graph_idx = d.name_to_graph_idx or {}
 
   return setmetatable(d, self)
 end
@@ -320,6 +378,12 @@ end
 function debug:draw()
   for item in all(self.items) do
     item:draw()
+  end
+
+  y = 127
+  for graph in all(self.graphs) do
+    y -= graph.rows * 8
+    graph:draw(y)
   end
 end
 
@@ -329,6 +393,19 @@ end
 
 function debug:rect(x, y, c, w, h)
   add(self.items, debug_rect:new({x=x,y=y,w=w,h=h,c=c}))
+end
+
+function debug:observe(name, value, rows, max_value)
+  idx = self.name_to_graph_idx[name]
+  if not idx then
+    idx = #self.graphs + 1
+    add(self.graphs, debug_graph:new({name = name, rows = rows, max_value = max_value}))
+    self.name_to_graph_idx[name] = idx
+  end
+  
+  current_graph = self.graphs[idx]
+  current_graph.values[current_graph.current_slot] = value
+  current_graph.current_slot = current_graph.current_slot % debug_graph.frames_stored + 1  
 end
 
 __gfx__
